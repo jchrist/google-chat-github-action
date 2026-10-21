@@ -15462,6 +15462,15 @@ function requireFollowRedirects () {
 	  if (!options.headers) {
 	    options.headers = {};
 	  }
+	  // Convert [header1, value1, header2, value2, …] to object
+	  else if (Array.isArray(options.headers)) {
+	    var headerList = options.headers;
+	    options.headers = {};
+	    for (var i = 0; i < headerList.length; i += 2) {
+	      options.headers[headerList[i]] = headerList[i + 1];
+	    }
+	  }
+	  // Ensure sensitive headers are always present
 	  if (!isArray(options.sensitiveHeaders)) {
 	    options.sensitiveHeaders = [];
 	  }
@@ -15861,7 +15870,7 @@ function requireFollowRedirects () {
 	}
 
 	function escapeRegex(regex) {
-	  return regex.replace(/[\]\\/()*+?.$]/g, "\\$&");
+	  return regex.replace(/[[\]\\/()*+?.^$|]/g, "\\$&");
 	}
 
 	// Exports

@@ -15875,7 +15875,7 @@ function requireFollowRedirects () {
 	return followRedirects.exports;
 }
 
-/*! Axios v1.21.0 Copyright (c) 2026 Matt Zabriskie and contributors */
+/*! Axios v1.21.1 Copyright (c) 2026 Matt Zabriskie and contributors */
 
 var axios_1;
 var hasRequiredAxios;
@@ -18764,7 +18764,7 @@ function requireAxios () {
 	  return process.env[key.toLowerCase()] || process.env[key.toUpperCase()] || '';
 	}
 
-	const VERSION = "1.21.0";
+	const VERSION = "1.21.1";
 
 	function parseProtocol(url) {
 	  const match = /^([-+\w]{1,25}):(?:\/\/)?/.exec(url);
@@ -22653,18 +22653,32 @@ function requireAxios () {
 	}
 
 	/**
-	 * Milliseconds elapsed since `start`, floored at zero.
+	 * Resolve the clock used to time adapter execution.
 	 *
-	 * Wall-clock, to match the rest of the codebase (speedometer, throttle,
-	 * AxiosTransformStream). A backwards clock adjustment mid-request would
-	 * otherwise produce a negative duration, so the result is clamped.
+	 * Prefers the monotonic `performance.now()` so wall-clock adjustments do not
+	 * skew the measurement, and so frameworks that forbid reading the current
+	 * time during prerendering (e.g. Next.js Cache Components) accept it. Falls
+	 * back to `Date.now()` in runtimes without the High Resolution Time API.
 	 *
-	 * @param {number} start Timestamp from `Date.now()`
+	 * @returns {() => number} Millisecond clock
+	 */
+	function resolveClock() {
+	  return typeof performance !== 'undefined' && utils$1.isFunction(performance.now) ? () => performance.now() : Date.now;
+	}
+
+	/**
+	 * Whole milliseconds elapsed since `start`, floored at zero.
+	 *
+	 * Rounded so the value stays an integer as with `Date.now()`. The fallback
+	 * wall clock can move backwards mid-request, so the result is clamped.
+	 *
+	 * @param {() => number} now Clock returned by `resolveClock()`
+	 * @param {number} start Timestamp read from `now`
 	 *
 	 * @returns {number} Non-negative elapsed milliseconds
 	 */
-	function elapsedSince(start) {
-	  return Math.max(0, Date.now() - start);
+	function elapsedSince(now, start) {
+	  return Math.max(0, Math.round(now() - start));
 	}
 
 	/**
@@ -22688,10 +22702,11 @@ function requireAxios () {
 	    config.headers.setContentType('application/x-www-form-urlencoded', false);
 	  }
 	  const adapter = adapters.getAdapter(config.adapter || defaults.adapter, config);
-	  const start = Date.now();
+	  const now = resolveClock();
+	  const start = now();
 	  return adapter(config).then(function onAdapterResolution(response) {
 	    throwIfCancellationRequested(config);
-	    response.duration = elapsedSince(start);
+	    response.duration = elapsedSince(now, start);
 
 	    // Expose the current response on config so that transformResponse can
 	    // attach it to any AxiosError it throws (e.g. on JSON parse failure).
@@ -22710,7 +22725,7 @@ function requireAxios () {
 
 	      // Transform response data
 	      if (reason && reason.response) {
-	        reason.response.duration = elapsedSince(start);
+	        reason.response.duration = elapsedSince(now, start);
 	        config.response = reason.response;
 	        try {
 	          reason.response.data = transformData.call(config, config.transformResponse, reason.response);
